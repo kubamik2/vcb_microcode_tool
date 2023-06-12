@@ -1,0 +1,30 @@
+use phf::{Map, phf_map};
+
+pub static MICROCODE_MAP: Map<&'static str, u8> = phf_map! {
+    "IP_WRITE" => 0,
+    "IP_READ" => 1,
+    "IP_CLEAR" => 2,
+    "IP_TICK" => 3,
+    "IR_WRITE" => 4,
+    "IMM_READ" => 5,
+    "SHAMT_READ" => 6,
+    "RD_READ" => 7,
+    "RT_READ" => 8,
+    "RS_READ" => 9,
+    "ADDR_READ" => 10,
+    "MEM_ADDR_WRITE" => 13,
+    "MEM_CONTENT_WRITE" => 14,
+    "MEM_CONTENT_READ" => 15,
+    "REG_READ" => 17,
+    "REG_WRITE" => 18,
+    "SUM_READ" => 19,
+    "CIN" => 20,
+    "ALU_BUF_A_WRITE" => 21,
+    "ALU_BUF_B_WRITE" => 22,
+    "REG_ADDR_WRITE" => 23,
+    "MICROCODE_COUNTER_CLEAR" => 24,
+    "XOR_READ" => 25,
+    "NOR_READ" => 26,
+    "AND_READ" => 27,
+    "OR_READ" => 28
+};

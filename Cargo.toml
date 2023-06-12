@@ -1,0 +1,15 @@
+[package]
+name = "vcb_mips_tools"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zstd = "*"
+sha1_smol = "*"
+base64 = "*"
+clap = {version = "*", features = ["derive"]}
+phf = {version = "*", features = ["macros"]}
+regex = "*"
+anyhow = "*"
