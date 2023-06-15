@@ -11,7 +11,7 @@ impl RGBA {
         RGBA {r, g, b, a}
     }
 
-    pub fn opaque(r: u8, g: u8, b: u8) -> Self {
+    pub fn new_opaque(r: u8, g: u8, b: u8) -> Self {
         RGBA {r, g, b, a: 255}
     }
 

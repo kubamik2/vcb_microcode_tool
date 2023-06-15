@@ -10,6 +10,5 @@ zstd = "*"
 sha1_smol = "*"
 base64 = "*"
 clap = {version = "*", features = ["derive"]}
-phf = {version = "*", features = ["macros"]}
-regex = "*"
-anyhow = "*"
+nom = "*"
+serde_json = "*"

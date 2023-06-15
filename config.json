@@ -1,0 +1,10 @@
+{
+    "opcodes": 2,
+    "opcode_bit_length": 6,
+    "counter_bit_length": 4,
+    "microcodes": {
+        "a": 1,
+        "b": 2,
+        "c": 3
+    }
+}

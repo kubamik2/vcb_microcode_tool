@@ -3,8 +3,7 @@ use zstd::Encoder;
 use base64::engine::{general_purpose::STANDARD, Engine};
 use sha1_smol::Sha1;
 use std::io::Write;
-
-type Error = Box<dyn std::error::Error>;
+use crate::error::Error;
 
 pub fn generate_logic_blueprint(ink_buffer: &InkLayer, width: u32, height: u32) -> Result<String, Error> {
 	let mut blueprint = String::new();
