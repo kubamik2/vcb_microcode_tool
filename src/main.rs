@@ -3,14 +3,14 @@ mod blueprint;
 mod microcode;
 mod error;
 
-use ink::{Ink, InkLayer};
+use ink::{Ink, InkLayer, RGBA, TRACES_ORDERED};
 
 use std::io::{Write, Read};
 use std::fs::File;
 use blueprint::generate_logic_blueprint;
 
 use clap::Parser;
-use microcode::parse_instructions;
+use microcode::{parse_instructions, State, str_to_state_vec};
 use serde_json::{from_reader, Value};
 use std::collections::HashMap;
 use error::ParseError;
@@ -19,15 +19,15 @@ use error::Error;
 
 #[derive(Parser)]
 struct Cli {
-	input: std::path::PathBuf,
-	output: std::path::PathBuf
+	input: std::path::PathBuf
 }
 
 pub struct Config {
 	opcodes: u64,
 	microcode_map: HashMap<String, u64>,
     opcode_bit_length: u64,
-    counter_bit_length: u64
+    counter_bit_length: u64,
+	counter_starting_number: u64
 }
 
 impl TryFrom<Value> for Config {
@@ -52,6 +52,12 @@ impl TryFrom<Value> for Config {
 			.ok_or(ParseError::MissingValue("microcodes".to_owned()))?
 			.as_object()
 			.ok_or(ParseError::MissingValue("microcodes".to_owned()))?;
+
+		let counter_starting_number = value.get("counter_starting_number")
+		.ok_or(ParseError::MissingValue("counter_starting_number".to_owned()))?
+		.as_u64()
+		.ok_or(ParseError::DataType("counter_starting_number".to_owned()))?;
+
 		let mut microcode_map: HashMap<String, u64> = HashMap::new();
 
 		for (key, value) in microcode_serde_map {
@@ -59,7 +65,7 @@ impl TryFrom<Value> for Config {
 			microcode_map.insert(key.clone(), value);
 		}
 
-		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length })
+		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, counter_starting_number })
 	}
 }
 
@@ -71,14 +77,115 @@ fn main() -> Result<(), Error> {
 	let args = Cli::parse();
 
 	let mut input_file = File::open(args.input)?;
-	let mut output_file = File::create(args.output)?;
 	let mut input = String::new();
 	input_file.read_to_string(&mut input)?;
 
+	println!("{}", generate_blueprint(&input)?);
+	Ok(())
+}
+
+fn append_state_vec_to_ink_layer(state_vec: &Vec<State>, ink_layer: &mut InkLayer, gate_ink: RGBA) {
+	for state in state_vec {
+		if gate_ink == Ink::AND {
+			match state {
+				State::True => {
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+	
+					ink_layer.push_ink(Ink::READ);
+	
+					ink_layer.push_ink(gate_ink);
+					
+				},
+				State::False => {
+					ink_layer.push_ink(Ink::READ);
+					ink_layer.push_ink(gate_ink);
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+				},
+				State::Any => {
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+				}
+			}
+		} else {
+			match state {
+				State::False => {
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+	
+					ink_layer.push_ink(Ink::READ);
+	
+					ink_layer.push_ink(gate_ink);
+					
+				},
+				State::True => {
+					ink_layer.push_ink(Ink::READ);
+					ink_layer.push_ink(gate_ink);
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+				},
+				State::Any => {
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+					ink_layer.push_ink(Ink::TC_GRAY);
+					ink_layer.push_ink(gate_ink);
+				}
+			}
+		}
+		
+	}
+}
+
+fn generate_blueprint(input: &String) -> Result<String, Error> {
 	let config_file = File::open("config.json")?;
 	let config_serde: Value = from_reader(config_file)?;
 	let config = Config::try_from(config_serde)?;
 
-	dbg!(parse_instructions(&input, &config));
-	Ok(())
+	let instructions = parse_instructions(&input, &config)?;
+
+	let mut ink_buffer: InkLayer = InkLayer::empty();
+	let mut height: u32 = 0;
+	let max_index = config.microcode_map.values().max().ok_or(ParseError::MissingValue("microcodes".to_owned()))?.clone();
+	let width: u32 = (config.opcodes * config.opcode_bit_length * 4 + config.counter_bit_length * 4 + (max_index + 1) * 2) as u32;
+	let mut gate_ink = Ink::AND;
+
+	for instruction in instructions {
+		let mut counter = config.counter_starting_number;
+		for layer in &instruction.microcodes {
+			for _ in 0..width/2 {
+				ink_buffer.push_ink(Ink::CROSS);
+				ink_buffer.push_ink(gate_ink);
+			}
+			height += 1;
+
+			for opcode in &instruction.opcodes {
+				append_state_vec_to_ink_layer(opcode, &mut ink_buffer, gate_ink);
+			}
+			let counter_string = format!("{:0>width$b}", counter, width = config.counter_bit_length.clone() as usize);
+			let counter_state_vec = str_to_state_vec(&counter_string)?;
+
+			append_state_vec_to_ink_layer(&counter_state_vec, &mut ink_buffer, gate_ink);
+			height += 1;
+
+			for i in 0..=max_index {
+				if layer.contains(&i) {
+					ink_buffer.push_ink(Ink::WRITE);
+				} else {
+					ink_buffer.push_ink(TRACES_ORDERED[i as usize % 16]);
+				}
+				ink_buffer.push_ink(gate_ink);
+			}
+			if gate_ink == Ink::AND {
+				gate_ink = Ink::NOR;
+			} else {
+				gate_ink = Ink::AND
+			}
+			counter += 1;
+		}
+	}
+
+	generate_logic_blueprint(&ink_buffer, width, height)
 }

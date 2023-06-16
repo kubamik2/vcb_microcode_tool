@@ -8,6 +8,19 @@ pub enum State {
 	Any
 }
 
+pub fn str_to_state_vec(input: &str) -> Result<Vec<State>, ParseError> {
+    let mut result = vec![];
+    for ch in input.chars() {
+        match ch {
+            '0' => { result.push(State::False) },
+            '1' => { result.push(State::True) },
+            '#' => { result.push(State::Any) },
+            _ => {return Err(ParseError::Formatting);}
+        }
+    }
+    Ok(result)
+}
+
 impl Default for State {
 	fn default() -> Self {
 		Self::False
@@ -73,22 +86,16 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
     let mut input = input.to_owned();
     let mut instruction = Instruction::new();
     for _ in 1..=config.opcodes {
-        let mut opcode: Vec<State> = vec![];
         let (_, opcode_str) = parse_opcode(&input).map_err(|_| ParseError::OpcodeFormatting)?;
 
         if opcode_str.len() as u64 != config.opcode_bit_length {return Err(ParseError::OpcodeLength);}
-        for ch in opcode_str.chars() {
-            match ch {
-                '0' => {opcode.push(State::False)},
-                '1' => {opcode.push(State::True)},
-                '#' => {opcode.push(State::Any)}
-                _ => {return Err(ParseError::OpcodeFormatting);}
-            }
-        }
+
+        let opcode = str_to_state_vec(&opcode_str).map_err(|_| ParseError::OpcodeFormatting)?;
+
         instruction.opcodes.push(opcode);
 
         input.drain(0..config.opcode_bit_length as usize);
-
+        
         let (rest, _) = parse_multispace(&input).map_err(|_| ParseError::OpcodeFormatting)?;
         input = rest.to_owned();
     }
@@ -106,6 +113,9 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
             input = rest.to_owned();
         }
         instruction.microcodes.push(microcode_layer);
+        if instruction.microcodes.len() as u64 > (2 as u64).pow(config.counter_bit_length as u32) - 1 + config.counter_starting_number - 1 {
+            return Err(ParseError::InstructionLength);
+        }
     }
     Ok((input, instruction))
 }
@@ -113,10 +123,13 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
 pub fn parse_instructions(input: &str, config: &Config) -> Result<Vec<Instruction>, ParseError> {
     let mut input = input.to_owned();
     let mut instructions: Vec<Instruction> = vec![];
-    while let Ok((output, instruction)) = parse_instruction(&input, config) {
-        input = output;
 
+    loop {
+        let (output, instruction) = parse_instruction(&input, config)?;
+        input = output;
         instructions.push(instruction);
+        if input.is_empty() {break;}
     }
+
     Ok(instructions)
 }

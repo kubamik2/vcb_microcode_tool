@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RGBA {
     pub r: u8,
@@ -20,6 +21,7 @@ impl RGBA {
 	}
 }
 
+#[derive(Debug)]
 pub struct InkLayer {
     ink_buffer: Vec<RGBA>
 }
@@ -44,6 +46,18 @@ impl InkLayer {
     pub fn len(&self) -> usize {
         self.ink_buffer.len()
     }
+
+	pub fn push_ink(&mut self, ink: RGBA) {
+		self.ink_buffer.push(ink);
+	}
+
+	pub fn get(&self, index: usize) -> Option<&RGBA> {
+		self.ink_buffer.get(index)
+	}
+
+	pub fn get_mut(&mut self, index: usize) -> Option<&mut RGBA> {
+		self.ink_buffer.get_mut(index)
+	}
 }
 
 pub struct Ink;
@@ -61,7 +75,7 @@ impl Ink {
 	pub const WRITE: RGBA = RGBA { r: 77, g: 56, b: 62, a: 255 };
 	pub const READ: RGBA = RGBA { r: 46, g: 71, b: 93, a: 255 };
 	pub const TC_GRAY: RGBA = RGBA { r: 42, g: 53, b: 65, a: 255 };
-	pub const TC_White: RGBA = RGBA { r: 159, g: 168, b: 174, a: 255 };
+	pub const TC_WHITE: RGBA = RGBA { r: 159, g: 168, b: 174, a: 255 };
 	pub const TC_RED: RGBA = RGBA { r: 161, g: 85, b: 94, a: 255 };
 	pub const TC_ORANGE: RGBA = RGBA { r: 161, g: 108, b: 86, a: 255 };
 	pub const TC_YELLOW_W: RGBA = RGBA { r: 161, g: 133, b: 86, a: 255 };
@@ -99,3 +113,23 @@ impl Ink {
 	pub const FILLER: RGBA = RGBA { r: 140, g: 171, b: 161, a: 255 };
 	pub const NONE: RGBA = RGBA { r: 0, g: 0, b: 0, a: 0 };
 }
+
+pub static TRACES_ORDERED: [RGBA; 16] = [
+	RGBA { r: 42, g: 53, b: 65, a: 255 },
+	RGBA { r: 159, g: 168, b: 174, a: 255 },
+	RGBA { r: 161, g: 85, b: 94, a: 255 },
+	RGBA { r: 161, g: 108, b: 86, a: 255 },
+	RGBA { r: 161, g: 133, b: 86, a: 255 },
+	RGBA { r: 161, g: 152, b: 86, a: 255 },
+	RGBA { r: 153, g: 161, b: 86, a: 255 },
+	RGBA { r: 136, g: 161, b: 86, a: 255 },
+	RGBA { r: 108, g: 161, b: 86, a: 255 },
+	RGBA { r: 86, g: 161, b: 141, a: 255 },
+	RGBA { r: 86, g: 147, b: 161, a: 255 },
+	RGBA { r: 86, g: 123, b: 161, a: 255 },
+	RGBA { r: 86, g: 98, b: 161, a: 255 },
+	RGBA { r: 102, g: 86, b: 161, a: 255 },
+	RGBA { r: 135, g: 86, b: 161, a: 255 },
+	RGBA { r: 161, g: 85, b: 151, a: 255 }
+];
+

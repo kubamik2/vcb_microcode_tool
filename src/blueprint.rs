@@ -18,14 +18,11 @@ pub fn generate_logic_blueprint(ink_buffer: &InkLayer, width: u32, height: u32) 
 	encoder.write_all(&ink_buffer.to_be_bytes())?;
 	encoder.finish()?;
 
-	compressed_buffer[4] = 32;
-	compressed_buffer[5] = 16;
-
 	blueprint_chunk.append(&mut (compressed_buffer.len() as u32 + 12).to_be_bytes().to_vec());
 	blueprint_chunk.append(&mut vec![0,0,0,0]);
 	blueprint_chunk.append(&mut (ink_buffer.to_be_bytes().len() as u32).to_be_bytes().to_vec());
 	blueprint_chunk.append(&mut compressed_buffer);
-
+	
 	let base64_blueprint_chunk = STANDARD.encode(&blueprint_chunk);
 
 	let mut hasher = Sha1::new();

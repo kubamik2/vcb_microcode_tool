@@ -9,7 +9,9 @@ pub enum ParseError {
     MissingInstruction(String),
     InstructionFormatting,
     DataType(String),
-    MissingValue(String)
+    MissingValue(String),
+    Formatting,
+    InstructionLength,
 }
 
 impl Display for ParseError {
@@ -20,7 +22,9 @@ impl Display for ParseError {
             ParseError::MissingInstruction(instruction) => {write!(f, "Instruction '{}' doesn't exist", instruction)},
             ParseError::DataType(key) => {write!(f, "Invalid data type for '{}'", key)},
             ParseError::MissingValue(value) => {write!(f, "Value '{}' doesn't exist", value)},
-            ParseError::InstructionFormatting => {write!(f, "Invalid instruction formatting")}
+            ParseError::InstructionFormatting => {write!(f, "Invalid instruction formatting")},
+            ParseError::Formatting => {write!(f, "Invalid formatting")},
+            ParseError::InstructionLength => {write!(f, "Instruction has too many steps")}
         }
     }
 }
@@ -33,7 +37,9 @@ impl StdError for ParseError {
             ParseError::MissingInstruction(_) => "Instruction doesn't exist",
             ParseError::DataType(_) => "Invalid data type",
             ParseError::MissingValue(_) => "Missing value",
-            ParseError::InstructionFormatting => "Invalid instruction formatting"
+            ParseError::InstructionFormatting => "Invalid instruction formatting",
+            ParseError::Formatting => "Invalid formatting",
+            ParseError::InstructionLength => "Instruction has too many steps"
         }
     }
 }
