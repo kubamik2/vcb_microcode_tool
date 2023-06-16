@@ -1,4 +1,4 @@
-use nom::{IResult, character::complete::{ multispace1, not_line_ending, one_of, space1}, multi::many1};
+use nom::{IResult, character::complete::{ multispace1, not_line_ending, one_of, space1}, multi::many1, bytes::complete::tag};
 use crate::{error::ParseError, Config};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,26 +39,68 @@ impl Instruction {
     }
 }
 
-fn parse_opcode(input: &str) -> IResult<&str, String> {
-    many1(one_of::<&str, _, nom::error::Error<&str>>("10#"))(&input)
-    .map(|op| (op.0, op.1.iter().collect::<String>()))
+fn parse_comment(input: &str) -> IResult<&str, &str> {
+    let (rest, _) = tag("//")(input)?;
+    not_line_ending::<&str, nom::error::Error<&str>>(rest)
 }
 
-fn parse_multispace(input: &str) -> IResult<&str, &str> {
-    multispace1(input)
+fn parse_opcode(input: &str) -> IResult<&str, String> {
+    let (rest, res) = many1(one_of::<&str, _, nom::error::Error<&str>>("10#"))(&input)
+    .map(|op| (op.0, op.1.iter().collect::<String>()))?;
+
+    match parse_comment(rest) {
+        Ok((rest_comment, _)) => {
+            Ok((rest_comment, res))
+        },
+        Err(_) => {
+            Ok((rest, res))
+        }
+    }
+}
+
+fn parse_word(input: &str) -> IResult<&str, String> {
+    let (rest, res) = many1(one_of::<&str, _, nom::error::Error<&str>>("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-"))(&input)
+    .map(|op| (op.0, op.1.iter().collect::<String>()))?;
+    match parse_comment(rest) {
+        Ok((rest_comment, _)) => {
+            Ok((rest_comment, res))
+        },
+        Err(_) => {
+            Ok((rest, res))
+        }
+    }
+}
+
+fn parse_multispace(input: &str) -> IResult<&str, String> {
+    let (rest, res) = multispace1(input)?;
+    let mut matched_multispace = res.to_owned();
+    let mut rest_final = rest;
+    while let Ok((rest_comment, _)) = parse_comment(rest_final) {
+        if let Ok((rest_multispace, res2)) = multispace1::<&str, nom::error::Error<&str>>(rest_comment) {
+            rest_final = rest_multispace;
+            matched_multispace.push_str(res2)
+
+        } else {
+            rest_final = rest_comment;
+        }
+    }
+    Ok((rest_final, matched_multispace))
+}
+
+fn parse_space(input: &str) -> IResult<&str, &str> {
+    let (rest, res) = space1(input)?;
+    match parse_comment(rest) {
+        Ok((rest_comment, _)) => {
+            Ok((rest_comment, res))
+        },
+        Err(_) => {
+            Ok((rest, res))
+        }
+    }
 }
 
 fn parse_line(input: &str) -> IResult<&str, &str> {
     not_line_ending(input)
-}
-
-fn parse_word(input: &str) -> IResult<&str, String> {
-    many1(one_of::<&str, _, nom::error::Error<&str>>("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-"))(&input)
-    .map(|op| (op.0, op.1.iter().collect::<String>()))
-}
-
-fn parse_space(input: &str) -> IResult<&str, &str> {
-    space1(input)
 }
 
 fn parse_micro_operations(line: String, config: &Config) -> Result<Vec<u64>, ParseError> {
@@ -86,6 +128,9 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
     let mut input = input.to_owned();
     let mut instruction = Instruction::new();
     for _ in 1..=config.opcodes {
+        if let Ok((rest, _)) = parse_multispace(&input) {
+            input = rest.to_owned();
+        }
         let (_, opcode_str) = parse_opcode(&input).map_err(|_| ParseError::OpcodeFormatting)?;
 
         if opcode_str.len() as u64 != config.opcode_bit_length {return Err(ParseError::OpcodeLength);}
