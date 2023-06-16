@@ -130,6 +130,11 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
     for _ in 1..=config.opcodes {
         if let Ok((rest, _)) = parse_multispace(&input) {
             input = rest.to_owned();
+        } else if let Ok((rest, _)) = parse_comment(&input) {
+            input = rest.to_owned();
+            if let Ok((rest, _)) = parse_multispace(&input) {
+                input = rest.to_owned();
+            }
         }
         let (_, opcode_str) = parse_opcode(&input).map_err(|_| ParseError::OpcodeFormatting)?;
 
