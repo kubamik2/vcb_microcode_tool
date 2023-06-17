@@ -30,7 +30,7 @@ impl Default for State {
 #[derive(Debug)]
 pub struct Instruction {
     pub opcodes: Vec<Vec<State>>,
-    pub microcodes: Vec<Vec<u64>>
+    pub microcodes: Vec<Vec<i64>>
 }
 
 impl Instruction {
@@ -59,7 +59,7 @@ fn parse_opcode(input: &str) -> IResult<&str, String> {
 }
 
 fn parse_word(input: &str) -> IResult<&str, String> {
-    let (rest, res) = many1(one_of::<&str, _, nom::error::Error<&str>>("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-"))(&input)
+    let (rest, res) = many1(one_of::<&str, _, nom::error::Error<&str>>("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-!"))(&input)
     .map(|op| (op.0, op.1.iter().collect::<String>()))?;
     match parse_comment(rest) {
         Ok((rest_comment, _)) => {
@@ -103,9 +103,9 @@ fn parse_line(input: &str) -> IResult<&str, &str> {
     not_line_ending(input)
 }
 
-fn parse_micro_operations(line: String, config: &Config) -> Result<Vec<u64>, ParseError> {
+fn parse_micro_operations(line: String, config: &Config) -> Result<Vec<i64>, ParseError> {
     let mut line = line;
-    let mut microcode_layer: Vec<u64> = vec![];
+    let mut microcode_layer: Vec<i64> = vec![];
     
     while let Ok((rest, chunk)) = parse_word(&line) {
         let index = config.microcode_map.get(&chunk).ok_or(ParseError::MissingInstruction(chunk))?.clone();

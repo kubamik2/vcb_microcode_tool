@@ -3,6 +3,7 @@
     "opcode_bit_length": 5,
     "counter_bit_length": 4,
     "counter_starting_number": 3,
+    "flags_bit_length": 4,
     "microcodes": {
 
     }

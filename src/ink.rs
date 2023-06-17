@@ -23,7 +23,7 @@ impl RGBA {
 
 #[derive(Debug)]
 pub struct InkLayer {
-    ink_buffer: Vec<RGBA>
+    pub ink_buffer: Vec<RGBA>
 }
 
 impl InkLayer {
@@ -42,22 +42,6 @@ impl InkLayer {
         }
         bytes
     }
-
-    pub fn len(&self) -> usize {
-        self.ink_buffer.len()
-    }
-
-	pub fn push_ink(&mut self, ink: RGBA) {
-		self.ink_buffer.push(ink);
-	}
-
-	pub fn get(&self, index: usize) -> Option<&RGBA> {
-		self.ink_buffer.get(index)
-	}
-
-	pub fn get_mut(&mut self, index: usize) -> Option<&mut RGBA> {
-		self.ink_buffer.get_mut(index)
-	}
 }
 
 pub struct Ink;

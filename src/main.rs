@@ -24,10 +24,11 @@ struct Cli {
 
 pub struct Config {
 	opcodes: u64,
-	microcode_map: HashMap<String, u64>,
+	microcode_map: HashMap<String, i64>,
     opcode_bit_length: u64,
     counter_bit_length: u64,
-	counter_starting_number: u64
+	counter_starting_number: u64,
+	flags_bit_length: u64
 }
 
 impl TryFrom<Value> for Config {
@@ -58,14 +59,19 @@ impl TryFrom<Value> for Config {
 		.as_u64()
 		.ok_or(ParseError::DataType("counter_starting_number".to_owned()))?;
 
-		let mut microcode_map: HashMap<String, u64> = HashMap::new();
+		let flags_bit_length = value.get("flags_bit_length")
+		.ok_or(ParseError::MissingValue("flags_bit_length".to_owned()))?
+		.as_u64()
+		.ok_or(ParseError::DataType("flags_bit_length".to_owned()))?;
+
+		let mut microcode_map: HashMap<String, i64> = HashMap::new();
 
 		for (key, value) in microcode_serde_map {
-			let value = value.as_u64().ok_or(ParseError::DataType(key.clone()))?;
+			let value = value.as_i64().ok_or(ParseError::DataType(key.clone()))?;
 			microcode_map.insert(key.clone(), value);
 		}
 
-		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, counter_starting_number })
+		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, counter_starting_number, flags_bit_length })
 	}
 }
 
@@ -89,49 +95,49 @@ fn append_state_vec_to_ink_layer(state_vec: &Vec<State>, ink_layer: &mut InkLaye
 		if gate_ink == Ink::AND {
 			match state {
 				State::True => {
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 	
-					ink_layer.push_ink(Ink::READ);
+					ink_layer.ink_buffer.push(Ink::READ);
 	
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(gate_ink);
 					
 				},
 				State::False => {
-					ink_layer.push_ink(Ink::READ);
-					ink_layer.push_ink(gate_ink);
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::READ);
+					ink_layer.ink_buffer.push(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 				},
 				State::Any => {
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 				}
 			}
 		} else {
 			match state {
 				State::False => {
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 	
-					ink_layer.push_ink(Ink::READ);
+					ink_layer.ink_buffer.push(Ink::READ);
 	
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(gate_ink);
 					
 				},
 				State::True => {
-					ink_layer.push_ink(Ink::READ);
-					ink_layer.push_ink(gate_ink);
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::READ);
+					ink_layer.ink_buffer.push(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 				},
 				State::Any => {
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
-					ink_layer.push_ink(Ink::TC_GRAY);
-					ink_layer.push_ink(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
+					ink_layer.ink_buffer.push(Ink::TC_GRAY);
+					ink_layer.ink_buffer.push(gate_ink);
 				}
 			}
 		}
@@ -148,16 +154,16 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 
 	let mut ink_buffer: InkLayer = InkLayer::empty();
 	let mut height: u32 = 0;
-	let max_index = config.microcode_map.values().max().ok_or(ParseError::MissingValue("microcodes".to_owned()))?.clone();
-	let width: u32 = (config.opcodes * config.opcode_bit_length * 4 + config.counter_bit_length * 4 + (max_index + 1) * 2) as u32;
+	let max_index = config.microcode_map.values().max().ok_or(ParseError::MissingValue("microcodes".to_owned()))?.clone() as u64;
+	let width: u32 = (config.opcodes * config.opcode_bit_length * 4 + config.counter_bit_length * 4 + (max_index + 1) * 2 + config.flags_bit_length * 4) as u32;
 	let mut gate_ink = Ink::AND;
 
 	for instruction in instructions {
 		let mut counter = config.counter_starting_number;
 		for layer in &instruction.microcodes {
 			for _ in 0..width/2 {
-				ink_buffer.push_ink(Ink::CROSS);
-				ink_buffer.push_ink(gate_ink);
+				ink_buffer.ink_buffer.push(Ink::CROSS);
+				ink_buffer.ink_buffer.push(gate_ink);
 			}
 			height += 1;
 
@@ -168,15 +174,23 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 			let counter_state_vec = str_to_state_vec(&counter_string)?;
 
 			append_state_vec_to_ink_layer(&counter_state_vec, &mut ink_buffer, gate_ink);
+			for i in (1..=config.flags_bit_length * 2).rev() {
+				if layer.contains(&-(i as i64)) {
+					ink_buffer.ink_buffer.push(Ink::READ);
+				} else {
+					ink_buffer.ink_buffer.push(Ink::TC_GRAY);
+				}
+				ink_buffer.ink_buffer.push(gate_ink);
+			}
 			height += 1;
 
 			for i in 0..=max_index {
-				if layer.contains(&i) {
-					ink_buffer.push_ink(Ink::WRITE);
+				if layer.contains(&(i as i64)) {
+					ink_buffer.ink_buffer.push(Ink::WRITE);
 				} else {
-					ink_buffer.push_ink(TRACES_ORDERED[i as usize % 16]);
+					ink_buffer.ink_buffer.push(TRACES_ORDERED[i as usize % 16]);
 				}
-				ink_buffer.push_ink(gate_ink);
+				ink_buffer.ink_buffer.push(gate_ink);
 			}
 			if gate_ink == Ink::AND {
 				gate_ink = Ink::NOR;
