@@ -11,7 +11,8 @@ pub enum ParseError {
     DataType(String),
     MissingValue(String),
     Formatting,
-    InstructionLength,
+    CounterOverflow,
+    CounterFormatting
 }
 
 impl Display for ParseError {
@@ -24,7 +25,8 @@ impl Display for ParseError {
             ParseError::MissingValue(value) => {write!(f, "Value '{}' doesn't exist", value)},
             ParseError::InstructionFormatting => {write!(f, "Invalid instruction formatting")},
             ParseError::Formatting => {write!(f, "Invalid formatting")},
-            ParseError::InstructionLength => {write!(f, "Instruction has too many steps")}
+            ParseError::CounterOverflow => {write!(f, "Counter overflow")},
+            ParseError::CounterFormatting => {write!(f, "Invalid counter formatting")}
         }
     }
 }
@@ -39,7 +41,8 @@ impl StdError for ParseError {
             ParseError::MissingValue(_) => "Missing value",
             ParseError::InstructionFormatting => "Invalid instruction formatting",
             ParseError::Formatting => "Invalid formatting",
-            ParseError::InstructionLength => "Instruction has too many steps"
+            ParseError::CounterOverflow => "Counter overflow",
+            ParseError::CounterFormatting => "Invalid counter formatting"
         }
     }
 }

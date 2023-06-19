@@ -27,7 +27,6 @@ pub struct Config {
 	microcode_map: HashMap<String, i64>,
     opcode_bit_length: u64,
     counter_bit_length: u64,
-	counter_starting_number: u64,
 	flags_bit_length: u64
 }
 
@@ -54,11 +53,6 @@ impl TryFrom<Value> for Config {
 			.as_object()
 			.ok_or(ParseError::MissingValue("microcodes".to_owned()))?;
 
-		let counter_starting_number = value.get("counter_starting_number")
-		.ok_or(ParseError::MissingValue("counter_starting_number".to_owned()))?
-		.as_u64()
-		.ok_or(ParseError::DataType("counter_starting_number".to_owned()))?;
-
 		let flags_bit_length = value.get("flags_bit_length")
 		.ok_or(ParseError::MissingValue("flags_bit_length".to_owned()))?
 		.as_u64()
@@ -71,7 +65,7 @@ impl TryFrom<Value> for Config {
 			microcode_map.insert(key.clone(), value);
 		}
 
-		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, counter_starting_number, flags_bit_length })
+		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, flags_bit_length })
 	}
 }
 
@@ -159,8 +153,7 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 	let mut gate_ink = Ink::AND;
 
 	for instruction in instructions {
-		let mut counter = config.counter_starting_number;
-		for layer in &instruction.microcodes {
+		for operation in &instruction.operations {
 			for _ in 0..width/2 {
 				ink_buffer.ink_buffer.push(Ink::CROSS);
 				ink_buffer.ink_buffer.push(gate_ink);
@@ -170,22 +163,38 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 			for opcode in &instruction.opcodes {
 				append_state_vec_to_ink_layer(opcode, &mut ink_buffer, gate_ink);
 			}
-			let counter_string = format!("{:0>width$b}", counter, width = config.counter_bit_length.clone() as usize);
+			let counter_string = format!("{:0>width$b}", operation.counter, width = config.counter_bit_length.clone() as usize);
 			let counter_state_vec = str_to_state_vec(&counter_string)?;
 
 			append_state_vec_to_ink_layer(&counter_state_vec, &mut ink_buffer, gate_ink);
 			for i in (1..=config.flags_bit_length * 2).rev() {
-				if layer.contains(&-(i as i64)) {
-					ink_buffer.ink_buffer.push(Ink::READ);
+				if gate_ink == Ink::AND {
+					if operation.micro_operations.contains(&-(i as i64)) {
+						ink_buffer.ink_buffer.push(Ink::READ);
+					} else {
+						ink_buffer.ink_buffer.push(Ink::TC_GRAY);
+					}
+					ink_buffer.ink_buffer.push(gate_ink);
 				} else {
-					ink_buffer.ink_buffer.push(Ink::TC_GRAY);
+					let mut j = i;
+					if i % 2 == 0 {
+						j -= 1;
+					} else {
+						j += 1;
+					}
+					if operation.micro_operations.contains(&-(j as i64)) {
+						ink_buffer.ink_buffer.push(Ink::READ);
+					} else {
+						ink_buffer.ink_buffer.push(Ink::TC_GRAY);
+					}
+					ink_buffer.ink_buffer.push(gate_ink);
 				}
-				ink_buffer.ink_buffer.push(gate_ink);
+				
 			}
 			height += 1;
 
 			for i in 0..=max_index {
-				if layer.contains(&(i as i64)) {
+				if operation.micro_operations.contains(&(i as i64)) {
 					ink_buffer.ink_buffer.push(Ink::WRITE);
 				} else {
 					ink_buffer.ink_buffer.push(TRACES_ORDERED[i as usize % 16]);
@@ -197,7 +206,6 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 			} else {
 				gate_ink = Ink::AND
 			}
-			counter += 1;
 		}
 	}
 
