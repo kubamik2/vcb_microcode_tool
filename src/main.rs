@@ -23,9 +23,8 @@ struct Cli {
 }
 
 pub struct Config {
-	opcodes: u64,
+	opcodes: Vec<(String, u64)>,
 	microcode_map: HashMap<String, i64>,
-    opcode_bit_length: u64,
     counter_bit_length: u64,
 	flags_bit_length: u64
 }
@@ -33,15 +32,10 @@ pub struct Config {
 impl TryFrom<Value> for Config {
 	type Error = Error;
 	fn try_from(value: Value) -> Result<Self, Self::Error> {
-		let opcodes = value.get("opcodes")
+		let opcodes_serde = value.get("opcodes")
 			.ok_or(ParseError::MissingValue("opcodes".to_owned()))?
-			.as_u64()
+			.as_array()
 			.ok_or(ParseError::DataType("opcodes".to_owned()))?;
-
-		let opcode_bit_length = value.get("opcode_bit_length")
-			.ok_or(ParseError::MissingValue("opcode_bit_length".to_owned()))?
-			.as_u64()
-			.ok_or(ParseError::DataType("opcode_bit_length".to_owned()))?;
 
 		let counter_bit_length = value.get("counter_bit_length")
 			.ok_or(ParseError::MissingValue("counter_bit_length".to_owned()))?
@@ -59,13 +53,19 @@ impl TryFrom<Value> for Config {
 		.ok_or(ParseError::DataType("flags_bit_length".to_owned()))?;
 
 		let mut microcode_map: HashMap<String, i64> = HashMap::new();
-
 		for (key, value) in microcode_serde_map {
 			let value = value.as_i64().ok_or(ParseError::DataType(key.clone()))?;
 			microcode_map.insert(key.clone(), value);
 		}
 
-		Ok(Self { opcodes, microcode_map, opcode_bit_length, counter_bit_length, flags_bit_length })
+		let mut opcodes = vec![];
+		for opcode in opcodes_serde {
+			let opcode = opcode.as_object().ok_or(ParseError::DataType("opcode".to_owned()))?;
+			let name = opcode.get("name").ok_or(ParseError::MissingValue("name".to_owned()))?.as_str().ok_or(ParseError::DataType("name".to_owned()))?.to_owned();
+			let value = opcode.get("length").ok_or(ParseError::MissingValue("length".to_owned()))?.as_u64().ok_or(ParseError::DataType("length".to_owned()))?;
+			opcodes.push((name, value));
+		}
+		Ok(Self { opcodes, microcode_map, counter_bit_length, flags_bit_length })
 	}
 }
 
@@ -149,7 +149,8 @@ fn generate_blueprint(input: &String) -> Result<String, Error> {
 	let mut ink_buffer: InkLayer = InkLayer::empty();
 	let mut height: u32 = 0;
 	let max_index = config.microcode_map.values().max().ok_or(ParseError::MissingValue("microcodes".to_owned()))?.clone() as u64;
-	let width: u32 = (config.opcodes * config.opcode_bit_length * 4 + config.counter_bit_length * 4 + (max_index + 1) * 2 + config.flags_bit_length * 4) as u32;
+	let opcodes_length: u64 = config.opcodes.iter().map(|f| f.1).collect::<Vec<u64>>().iter().sum();
+	let width: u32 = (opcodes_length * 4 + config.counter_bit_length * 4 + (max_index + 1) * 2 + config.flags_bit_length * 4) as u32;
 	let mut gate_ink = Ink::AND;
 
 	for instruction in instructions {

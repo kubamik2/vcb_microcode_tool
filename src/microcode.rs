@@ -1,4 +1,6 @@
-use nom::{IResult, character::complete::{ multispace1, not_line_ending, one_of, space1, digit1}, multi::{many1, separated_list1}, bytes::complete::tag, sequence::{preceded, delimited, terminated, pair}, combinator::map, branch::alt};
+use std::collections::HashMap;
+
+use nom::{IResult, character::complete::{ multispace1, not_line_ending, one_of, space1, digit1}, multi::{many1, separated_list1}, bytes::complete::tag, sequence::{preceded, delimited, terminated, pair, separated_pair}, combinator::{map, opt}, branch::alt};
 use crate::{error::ParseError, Config};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +28,9 @@ impl Default for State {
 		Self::False
 	}
 }
+
+type Opcodes = HashMap<String, Vec<State>>;
+
 
 #[derive(Debug, Clone)]
 pub struct Operation {
@@ -58,7 +63,7 @@ fn parse_multispace(input: &str) -> IResult<&str, String> {
 
 fn parse_word(input: &str) -> IResult<&str, String> {
     map(
-        many1(one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-!")),
+        many1(one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-!1234567890")),
         |f| f.iter().collect::<String>()
     )(input)
 }
@@ -74,25 +79,37 @@ fn parse_counter(input: &str) -> IResult<&str, &str> {
     digit1(input)
 }
 
-fn parse_opcode(input: &str) -> IResult<&str, String> {
-    map(
-        many1(one_of("10#")),
-        |f| f.iter().collect::<String>()
+fn parse_opcode(input: &str) -> IResult<&str, (String, String)> {
+    separated_pair(
+        terminated(parse_word, opt(parse_space)), 
+        tag("="),
+        preceded(
+            opt(parse_space),
+            map(
+                many1(one_of("10#")),
+                |f| f.iter().collect::<String>()
+            )
+        )
     )(input)
 }
 
-fn parse_opcodes<'a>(input: &'a str, config: &'a Config) -> Result<(&'a str, Vec<Vec<State>>), ParseError> {
-    let result = delimited(tag("["), separated_list1(parse_space, parse_opcode), tag("]"))(input).map_err(|_| ParseError::OpcodeFormatting)?;
-    let opcodes = result.1.iter()
-    .map(|f| 
-        str_to_state_vec(f)
-        .map(|op| 
-            if op.len() as u64 != config.opcode_bit_length {
-                Err(ParseError::OpcodeLength)
-            } else {
-                Ok(op)
-            })
-    ).collect::<Result<Result<Vec<Vec<State>>, ParseError>, ParseError>>()??;
+fn parse_opcodes<'a>(input: &'a str, config: &'a Config) -> Result<(&'a str, Opcodes), ParseError> {
+    let result = delimited(
+        terminated(tag("["), opt(parse_space)),
+        opt(separated_list1(parse_space, parse_opcode)),
+        preceded(opt(parse_space), tag("]"))
+    )(input).map_err(|_| ParseError::OpcodeFormatting)?;
+
+    let mut opcodes = HashMap::new();
+    if let Some(result) = result.1 {
+        for opcode_pair in result.iter() {
+            let opcode_value = str_to_state_vec(&opcode_pair.1)?;
+            let opcode_name = opcode_pair.0.clone();
+            if opcode_value.len() as u64 != config.opcodes.iter().find(|p| p.0 == opcode_name).ok_or(ParseError::MissingOpcode(opcode_name.clone()))?.1 {return Err(ParseError::OpcodeLength(opcode_name));}
+            opcodes.insert(opcode_name, opcode_value);
+        }
+    }
+    
     Ok((result.0, opcodes))
 }
 
@@ -112,7 +129,17 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
 
     let mut instruction = Instruction::new();
     let (rest, opcodes) = parse_opcodes(&input, config)?;
-    instruction.opcodes = opcodes;
+    for opcode in &config.opcodes {
+        if let Some(value) = opcodes.get(&opcode.0) {
+            instruction.opcodes.push(value.clone());
+        } else {
+            let mut default_state_vec = vec![];
+            for _ in 0..opcode.1 {
+                default_state_vec.push(State::Any);
+            }
+            instruction.opcodes.push(default_state_vec);
+        }
+    }
     input = rest.to_owned();
 
     loop {
@@ -126,7 +153,6 @@ pub fn parse_instruction(input: &str, config: &Config) -> Result<(String, Instru
         instruction.operations.push(operation);
         if input.is_empty() {break;}
     }
-
     Ok((input, instruction))
 }
 

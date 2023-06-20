@@ -1,6 +1,7 @@
 {
-    "opcodes": 1,
-    "opcode_bit_length": 5,
+    "opcodes": [
+        {"name": "OPCODE", "length": 6}
+    ],
     "counter_bit_length": 4,
     "flags_bit_length": 4,
     "microcodes": {
